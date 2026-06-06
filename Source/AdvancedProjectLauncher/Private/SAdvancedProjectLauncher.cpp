@@ -7,6 +7,8 @@
 #include "ILauncherProfileManager.h"
 #include "ILauncherProfile.h"
 #include "Modules/ModuleManager.h"
+#include "GeneralProjectSettings.h"   // edit project version
+#include "UObject/UnrealType.h"       // FProperty / FPropertyChangedEvent
 
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
@@ -244,7 +246,31 @@ void SAdvancedProjectLauncher::Construct(const FArguments& InArgs)
 				]
 			]
 
-			// Post-build file: launched once when the queue finishes (not on cancel).
+			// Project version (UGeneralProjectSettings::ProjectVersion in Config/DefaultGame.ini).
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 6, 0)
+					[
+						SNew(STextBlock).Text(LOCTEXT("ProjectVersionLabel", "Project version:"))
+					]
+					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+					[
+						SAssignNew(ProjectVersionBox, SEditableTextBox)
+						.Text(FText::FromString(GetDefault<UGeneralProjectSettings>()->ProjectVersion))
+						.ToolTipText(LOCTEXT("ProjectVersionTip", "Edit the project version. Saved to Config/DefaultGame.ini and broadcast so listeners update."))
+						.OnTextCommitted(this, &SAdvancedProjectLauncher::OnProjectVersionCommitted)
+					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6, 0, 0, 0)
+					[
+						SNew(SButton)
+						.Text(LOCTEXT("SetVersion", "Set"))
+						.ToolTipText(LOCTEXT("SetVersionTip", "Apply and save the project version."))
+						.OnClicked(this, &SAdvancedProjectLauncher::OnSetProjectVersionClicked)
+					]
+				]
+
+				// Post-build file: launched once when the queue finishes (not on cancel).
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)
 			[
 				SNew(SHorizontalBox)
@@ -662,6 +688,62 @@ void SAdvancedProjectLauncher::OnPostBuildTextCommitted(const FText& NewText, ET
 	{
 		Queue->SetPostBuildCommand(NewText.ToString().TrimStartAndEnd());
 	}
+}
+
+void SAdvancedProjectLauncher::OnProjectVersionCommitted(const FText& NewText, ETextCommit::Type CommitType)
+{
+	// Apply on Enter only (avoid committing just because focus moved away).
+	if (CommitType == ETextCommit::OnEnter)
+	{
+		ApplyProjectVersion(NewText.ToString().TrimStartAndEnd());
+	}
+}
+
+FReply SAdvancedProjectLauncher::OnSetProjectVersionClicked()
+{
+	if (ProjectVersionBox.IsValid())
+	{
+		ApplyProjectVersion(ProjectVersionBox->GetText().ToString().TrimStartAndEnd());
+	}
+	return FReply::Handled();
+}
+
+void SAdvancedProjectLauncher::ApplyProjectVersion(const FString& NewVersion)
+{
+	UGeneralProjectSettings* Settings = GetMutableDefault<UGeneralProjectSettings>();
+	if (!Settings)
+	{
+		return;
+	}
+
+	if (Settings->ProjectVersion == NewVersion)
+	{
+		ShowNotification(FText::Format(LOCTEXT("VersionUnchanged", "Project version is already {0}"), FText::FromString(NewVersion)), true);
+		return;
+	}
+
+	Settings->ProjectVersion = NewVersion;
+
+	// Notify in-editor listeners: PostEditChangeProperty broadcasts FCoreUObjectDelegates::
+	// OnObjectPropertyChanged, which is how systems watching the project settings react.
+#if WITH_EDITOR
+	if (FProperty* VersionProperty = UGeneralProjectSettings::StaticClass()->FindPropertyByName(
+			GET_MEMBER_NAME_CHECKED(UGeneralProjectSettings, ProjectVersion)))
+	{
+		FPropertyChangedEvent ChangeEvent(VersionProperty);
+		Settings->PostEditChangeProperty(ChangeEvent);
+	}
+#endif
+
+	// Persist to Config/DefaultGame.ini so it survives restarts and external tools (e.g. your
+	// packaging .bat that reads ProjectVersion=) pick it up.
+	Settings->TryUpdateDefaultConfigFile();
+
+	if (ProjectVersionBox.IsValid())
+	{
+		ProjectVersionBox->SetText(FText::FromString(NewVersion)); // reflect trimming
+	}
+	ShowNotification(FText::Format(LOCTEXT("VersionSet", "Project version set to {0}"), FText::FromString(NewVersion)), true);
 }
 
 const void* SAdvancedProjectLauncher::GetDialogParentWindowHandle()

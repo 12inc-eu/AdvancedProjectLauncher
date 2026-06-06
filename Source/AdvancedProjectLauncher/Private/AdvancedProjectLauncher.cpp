@@ -10,9 +10,8 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"   // FToolBarBuilder
-#include "Framework/MultiBox/MultiBoxExtender.h"   // FExtender
-#include "LevelEditor.h"                           // FLevelEditorModule toolbar extensibility
+#include "Framework/Commands/UIAction.h"           // FUIAction / FExecuteAction
+#include "ToolMenus.h"                             // extend the toolbar "Platforms" menu
 
 #define LOCTEXT_NAMESPACE "FAdvancedProjectLauncherModule"
 
@@ -41,28 +40,22 @@ void FAdvancedProjectLauncherModule::StartupModule()
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Launcher.TabIcon"))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory());
 
-	// Level Editor toolbar button (mirrors ContextExporter's reliable FExtender approach).
-	if (FModuleManager::Get().IsModuleLoaded("LevelEditor"))
-	{
-		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
-		ToolbarExtender = MakeShared<FExtender>();
-		ToolbarExtender->AddToolBarExtension(
-			"Play",
-			EExtensionHook::After,
-			nullptr,
-			FToolBarExtensionDelegate::CreateRaw(this, &FAdvancedProjectLauncherModule::FillToolbar));
-		LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
-	}
+	// Add an entry to the toolbar "Platforms" menu (next to the built-in Project Launcher).
+	ToolMenusHandle = UToolMenus::RegisterStartupCallback(
+		FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FAdvancedProjectLauncherModule::RegisterMenus));
 }
 
 void FAdvancedProjectLauncherModule::ShutdownModule()
 {
-	if (ToolbarExtender.IsValid() && FModuleManager::Get().IsModuleLoaded("LevelEditor"))
+	if (UObjectInitialized() && ToolMenusHandle.IsValid())
 	{
-		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
-		LevelEditorModule.GetToolBarExtensibilityManager()->RemoveExtender(ToolbarExtender);
+		UToolMenus::UnRegisterStartupCallback(ToolMenusHandle);
+		ToolMenusHandle.Reset();
 	}
-	ToolbarExtender.Reset();
+	if (UToolMenus::TryGet())
+	{
+		UToolMenus::UnregisterOwner(this);
+	}
 
 	if (FSlateApplication::IsInitialized())
 	{
@@ -83,19 +76,36 @@ TSharedRef<SDockTab> FAdvancedProjectLauncherModule::SpawnTab(const FSpawnTabArg
 	return DockTab;
 }
 
-void FAdvancedProjectLauncherModule::FillToolbar(FToolBarBuilder& Builder)
+void FAdvancedProjectLauncherModule::RegisterMenus()
 {
-	Builder.BeginSection("AdvancedProjectLauncher");
-	Builder.AddToolBarButton(
-		FUIAction(FExecuteAction::CreateLambda([]()
+	FToolMenuOwnerScoped OwnerScoped(this);
+
+	// Add our entry next to the built-in "Project Launcher", at the top of that section. The
+	// "Platforms" menu's name and section changed between engine versions, so extend both: the
+	// extension for whichever name does not exist on the running engine is simply never used.
+	auto AddEntry = [](const TCHAR* MenuName, const TCHAR* SectionName)
+	{
+		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(MenuName);
+		if (!Menu)
 		{
-			FGlobalTabmanager::Get()->TryInvokeTab(AdvancedProjectLauncherTabName);
-		})),
-		NAME_None,
-		LOCTEXT("ToolbarButtonLabel", "Automated Build"),
-		LOCTEXT("ToolbarButtonTooltip", "Open the Advanced Project Launcher to queue and build multiple profiles."),
-		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Launcher.TabIcon"));
-	Builder.EndSection();
+			return;
+		}
+
+		FToolMenuSection& Section = Menu->FindOrAddSection(SectionName);
+		FToolMenuEntry& Entry = Section.AddMenuEntry(
+			"AdvancedProjectLauncher.Open",
+			LOCTEXT("PlatformsMenuLabel", "Advanced Project Launcher..."),
+			LOCTEXT("PlatformsMenuTooltip", "Open the Advanced Project Launcher to queue and build multiple profiles."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Launcher.TabIcon"),
+			FUIAction(FExecuteAction::CreateLambda([]()
+			{
+				FGlobalTabmanager::Get()->TryInvokeTab(AdvancedProjectLauncherTabName);
+			})));
+		Entry.InsertPosition = FToolMenuInsert(NAME_None, EToolMenuInsertType::First);
+	};
+
+	AddEntry(TEXT("UnrealEd.PlayWorldCommands.PlatformsMenu"), TEXT("TurnkeyOptions")); // UE 5.4 and earlier (toolbar Platforms dropdown)
+	AddEntry(TEXT("LevelEditor.MainMenu.Platforms"), TEXT("ProjectLauncher"));          // UE 5.5+ (Platforms main menu)
 }
 
 #undef LOCTEXT_NAMESPACE

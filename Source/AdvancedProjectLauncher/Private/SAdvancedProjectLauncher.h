@@ -58,6 +58,11 @@ private:
 	FReply OnBrowsePostBuildClicked();
 	void OnPostBuildTextCommitted(const FText& NewText, ETextCommit::Type CommitType);
 
+	// Project version editing
+	FReply OnSetProjectVersionClicked();
+	void OnProjectVersionCommitted(const FText& NewText, ETextCommit::Type CommitType);
+	void ApplyProjectVersion(const FString& NewVersion);
+
 	// Export / import launch profiles as JSON (portable across engine versions and machines)
 	FReply OnExportClicked();
 	FReply OnImportClicked();
@@ -111,4 +116,7 @@ private:
 
 	/** Editable path of the file to run when the queue finishes. */
 	TSharedPtr<SEditableTextBox> PostBuildBox;
+
+	/** Editable project version (UGeneralProjectSettings::ProjectVersion). */
+	TSharedPtr<SEditableTextBox> ProjectVersionBox;
 };

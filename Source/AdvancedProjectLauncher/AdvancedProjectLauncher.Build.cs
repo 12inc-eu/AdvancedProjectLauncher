@@ -26,8 +26,8 @@ public class AdvancedProjectLauncher : ModuleRules
 				"ToolMenus",
 				"Projects",
 				"UnrealEd",
-				"LevelEditor",              // toolbar button extender (mirrors ContextExporter)
 				"WorkspaceMenuStructure",   // WorkspaceMenu::GetMenuStructure().GetToolsCategory()
+				"EngineSettings",           // UGeneralProjectSettings (edit project version)
 				"LauncherServices",         // ILauncherServicesModule / ILauncher / profiles / worker
 				"TargetDeviceServices",     // ITargetDeviceServicesModule -> device proxy manager
 				"TargetPlatform",           // companion of LauncherServices (target platform types)

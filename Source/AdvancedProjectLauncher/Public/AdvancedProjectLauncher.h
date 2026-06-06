@@ -8,8 +8,6 @@
 class FAdvancedLauncherQueue;
 class FSpawnTabArgs;
 class SDockTab;
-class FToolBarBuilder;
-class FExtender;
 
 /**
  * Editor module for the Advanced Project Launcher.
@@ -36,12 +34,12 @@ private:
 	/** Builds the dock tab content. */
 	TSharedRef<SDockTab> SpawnTab(const FSpawnTabArgs& Args);
 
-	/** Adds the "Automated Build" button to the Level Editor toolbar. */
-	void FillToolbar(FToolBarBuilder& Builder);
+	/** Adds an entry to the toolbar "Platforms" menu, next to the built-in Project Launcher. */
+	void RegisterMenus();
 
 	/** Session-lifetime queue controller. */
 	TSharedPtr<FAdvancedLauncherQueue> Queue;
 
-	/** Keeps the Level Editor toolbar button alive; removed on shutdown. */
-	TSharedPtr<FExtender> ToolbarExtender;
+	/** Handle for the deferred ToolMenus registration callback. */
+	FDelegateHandle ToolMenusHandle;
 };
