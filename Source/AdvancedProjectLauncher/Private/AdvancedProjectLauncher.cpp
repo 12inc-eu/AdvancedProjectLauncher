@@ -106,6 +106,23 @@ void FAdvancedProjectLauncherModule::RegisterMenus()
 
 	AddEntry(TEXT("UnrealEd.PlayWorldCommands.PlatformsMenu"), TEXT("TurnkeyOptions")); // UE 5.4 and earlier (toolbar Platforms dropdown)
 	AddEntry(TEXT("LevelEditor.MainMenu.Platforms"), TEXT("ProjectLauncher"));          // UE 5.5+ (Platforms main menu)
+
+	// Keep the Platforms placement above, since sitting next to the built-in
+	// Project Launcher is where people look for it. Also list it in the shared
+	// Exiin menu so every in-house tool is findable from one place.
+	if (UToolMenu* ExiinMenu = UToolMenus::Get()->ExtendMenu(TEXT("LevelEditor.MainMenu.Exiin.ExiinTools")))
+	{
+		FToolMenuSection& ExiinSection = ExiinMenu->FindOrAddSection("Project", NSLOCTEXT("ExiinTools", "ProjectSection", "Project"));
+		ExiinSection.AddMenuEntry(
+			"AdvancedProjectLauncher.OpenFromExiin",
+			LOCTEXT("PlatformsMenuLabel", "Advanced Project Launcher..."),
+			LOCTEXT("PlatformsMenuTooltip", "Open the Advanced Project Launcher to queue and build multiple profiles."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Launcher.TabIcon"),
+			FUIAction(FExecuteAction::CreateLambda([]()
+			{
+				FGlobalTabmanager::Get()->TryInvokeTab(AdvancedProjectLauncherTabName);
+			})));
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
